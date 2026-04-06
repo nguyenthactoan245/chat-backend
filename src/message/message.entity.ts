@@ -9,6 +9,9 @@ export class Message {
   @Column()
   content!: string;         // ← thêm !
 
+  @Column({ nullable: true })
+  roomId!: string;        // ← thêm: "1_3" nghĩa là user 1 chat với user 3
+
   @CreateDateColumn()
   createdAt!: Date;         // ← thêm !
 
