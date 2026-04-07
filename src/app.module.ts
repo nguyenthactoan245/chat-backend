@@ -13,13 +13,13 @@ import { Message } from './message/message.entity';
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'toan1234',    // ← đổi thành password của bạn
-      database: 'chatapp',
+      host: process.env.DB_HOST ?? 'localhost',
+      port: parseInt(process.env.DB_PORT ?? '5432'),
+      username: process.env.DB_USERNAME ?? 'postgres',
+      password: process.env.DB_PASSWORD ?? 'toan1234',
+      database: process.env.DB_DATABASE ?? 'chatapp',
       entities: [User, Message],
-      synchronize: true,       // tự tạo bảng khi dev
+      synchronize: true,
     }),
     AuthModule,
     UserModule,
