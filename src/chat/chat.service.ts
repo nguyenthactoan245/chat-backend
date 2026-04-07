@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Message } from '../message/message.entity';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class ChatService {
   constructor(
     @InjectRepository(Message)
     private messageRepository: Repository<Message>,
+    private userService: UserService,
   ) {}
 
   // Tạo roomId chuẩn từ 2 userId — luôn sắp xếp nhỏ trước lớn sau
@@ -29,6 +31,47 @@ export class ChatService {
       sender: { id: senderId },
     });
     return this.messageRepository.save(message);
+  }
+
+  // Lấy danh sách hội thoại của user
+  async getConversations(userId: number): Promise<any[]> {
+    const messages = await this.messageRepository
+      .createQueryBuilder('msg')
+      .innerJoinAndSelect('msg.sender', 'sender')
+      .where('msg.roomId LIKE :p1 OR msg.roomId LIKE :p2', {
+        p1: `${userId}_%`,
+        p2: `%_${userId}`,
+      })
+      .orderBy('msg.createdAt', 'DESC')
+      .getMany();
+
+    // Group by roomId, lấy tin nhắn cuối cùng
+    const roomMap = new Map<string, { otherUserId: number; lastMessage: string; lastMessageTime: Date; isMine: boolean }>();
+    for (const msg of messages) {
+      if (!roomMap.has(msg.roomId)) {
+        const parts = msg.roomId.split('_').map(Number);
+        const otherUserId = parts[0] === userId ? parts[1] : parts[0];
+        roomMap.set(msg.roomId, {
+          otherUserId,
+          lastMessage: msg.content,
+          lastMessageTime: msg.createdAt,
+          isMine: msg.sender.id === userId,
+        });
+      }
+    }
+
+    // Lấy username của các user kia
+    const otherIds = [...new Set([...roomMap.values()].map(r => r.otherUserId))];
+    const users = await this.userService.findByIds(otherIds);
+    const userMap = new Map(users.map(u => [u.id, u.username]));
+
+    return [...roomMap.values()].map(r => ({
+      userId: r.otherUserId,
+      username: userMap.get(r.otherUserId) ?? `User ${r.otherUserId}`,
+      lastMessage: r.lastMessage,
+      lastMessageTime: r.lastMessageTime,
+      isMine: r.isMine,
+    }));
   }
 
   // Lấy tin nhắn theo roomId

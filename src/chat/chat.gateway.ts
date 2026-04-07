@@ -90,6 +90,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.emit('privateMessageHistory', messages);
   }
 
+  @SubscribeMessage('getConversations')
+  async handleGetConversations(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { userId: number },
+  ) {
+    const conversations = await this.chatService.getConversations(data.userId);
+    client.emit('conversationList', conversations);
+  }
+
   // ← thêm: xử lý chat với bot
   @SubscribeMessage('sendBotMessage')
   async handleBotMessage(

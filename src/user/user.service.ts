@@ -15,6 +15,11 @@ export class UserService {
     return this.userRepository.findOneBy({ username });
   }
 
+  findByIds(ids: number[]): Promise<User[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.userRepository.findBy(ids.map(id => ({ id })));
+  }
+
   // Tạo user mới
   create(username: string, hashedPassword: string): Promise<User> {
     const user = this.userRepository.create({
