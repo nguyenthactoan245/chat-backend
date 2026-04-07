@@ -1,23 +1,37 @@
 import { Injectable } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import Groq from 'groq-sdk';
 
 @Injectable()
 export class BotService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private groq: Groq;
 
   constructor() {
-    this.genAI = new GoogleGenerativeAI('AIzaSyAE-Q8nNoCb8V8UG9MYikGFS3NE5OzxE-w'); // ← dán key vào đây
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.0-pro' });
+    this.groq = new Groq({
+      apiKey: process.env.GROQ_API_KEY, // ← dán API key Groq vào đây
+    });
   }
 
-    async getReply(userMessage: string): Promise<string> {
+  async getReply(userMessage: string): Promise<string> {
     try {
-        const result = await this.model.generateContent(userMessage);
-        return result.response.text();
+      const completion = await this.groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant in a chat application. Reply concisely and naturally.',
+          },
+          {
+            role: 'user',
+            content: userMessage,
+          },
+        ],
+        max_tokens: 1024,
+      });
+
+      return completion.choices[0]?.message?.content ?? 'Xin lỗi, bot không có phản hồi.';
     } catch (error) {
-        console.error('Gemini error:', error);  // ← đảm bảo dòng này có
-        return 'Xin lỗi, bot đang bận. Thử lại sau nhé!';
+      console.error('Groq error:', error);
+      return 'Xin lỗi, bot đang bận. Thử lại sau nhé!';
     }
-    }
+  }
 }
