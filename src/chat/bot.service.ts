@@ -7,7 +7,7 @@ export class BotService {
 
   constructor() {
     this.groq = new Groq({
-      apiKey: process.env.GROQ_API_KEY, // ← dán API key Groq vào đây
+      apiKey: process.env.GROQ_API_KEY,
     });
   }
 
