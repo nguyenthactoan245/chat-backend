@@ -1,0 +1,156 @@
+🗺️ TỔNG QUAN HỆ THỐNG CHAT APP
+
+┌─────────────────────────────────────────────────────────────────┐
+│                        NGƯỜI DÙNG (Browser)                     │
+└──────────────────────────┬──────────────────────────────────────┘
+                           │
+              http://localhost:4200
+                           │
+┌──────────────────────────▼──────────────────────────────────────┐
+│                   FRONTEND (Angular 21)                          │
+│                  frontend-chat/src/app/                          │
+├─────────────────────────────────────────────────────────────────┤
+│  PAGES (Components)          SERVICES                            │
+│  ┌──────────────┐            ┌─────────────────────────────┐    │
+│  │  /register   │            │ AuthService (auth.ts)        │    │
+│  │  RegisterComp│            │  - register()               │    │
+│  └──────┬───────┘            │  - login()                  │    │
+│         │ đăng ký xong       │  - saveSession() → LocalStor│    │
+│  ┌──────▼───────┐            │  - getToken/Username/UserId  │    │
+│  │  /login      │            └─────────────────────────────┘    │
+│  │  LoginComp   │            ┌─────────────────────────────┐    │
+│  └──────┬───────┘            │ SocketService (socket.service)│   │
+│         │ đăng nhập xong     │  - connect() → ws:3000      │    │
+│  ┌──────▼───────┐            │  - emit(event, data)         │    │
+│  │  /chat       │◄──────────►│  - on(event, callback)       │    │
+│  │  ChatComp    │            └─────────────────────────────┘    │
+│  └──────────────┘            ┌─────────────────────────────┐    │
+│                              │ ChatService (chat.service.ts)│    │
+│  AuthGuard                   │  - notifyOnline()           │    │
+│  (bảo vệ route /chat,        │  - sendPrivateMessage()     │    │
+│   redirect về /login         │  - getPrivateMessages()     │    │
+│   nếu chưa đăng nhập)        │  - getConversations()       │    │
+│                              │  - sendBotMessage()         │    │
+│                              └─────────────────────────────┘    │
+└────────────┬────────────────────────────┬───────────────────────┘
+             │                            │
+     HTTP REST API                  WebSocket (Socket.IO)
+     POST /auth/register            ws://localhost:3000
+     POST /auth/login               (realtime, 2 chiều)
+             │                            │
+┌────────────▼────────────────────────────▼───────────────────────┐
+│                    BACKEND (NestJS)                              │
+│                    backend-chat/src/          PORT: 3000         │
+├──────────────────────────┬──────────────────────────────────────┤
+│   HTTP Module             │        WebSocket Module              │
+│                           │                                      │
+│  ┌────────────────────┐   │   ┌──────────────────────────────┐  │
+│  │  AuthController    │   │   │       ChatGateway             │  │
+│  │  POST /auth/login  │   │   │  (chat.gateway.ts)            │  │
+│  │  POST /auth/regist │   │   │                               │  │
+│  └─────────┬──────────┘   │   │  Events lắng nghe:           │  │
+│            │              │   │  ● userOnline                 │  │
+│  ┌─────────▼──────────┐   │   │  ● sendPrivateMessage        │  │
+│  │   AuthService      │   │   │  ● getPrivateMessages        │  │
+│  │  - register()      │   │   │  ● getConversations          │  │
+│  │    bcrypt hash pw  │   │   │  ● sendBotMessage            │  │
+│  │  - login()         │   │   │                               │  │
+│  │    verify + JWT    │   │   │  Events phát ra:             │  │
+│  └─────────┬──────────┘   │   │  ● onlineUsers (broadcast)   │  │
+│            │              │   │  ● newPrivateMessage          │  │
+│            │              │   │  ● privateMessageHistory      │  │
+│            │              │   │  ● conversationList           │  │
+│            │              │   │  ● newBotMessage              │  │
+│            │              │   └──────────┬───────────────────┘  │
+│            │              │              │                       │
+│            │         ┌────▼──────────────▼──────────┐           │
+│            │         │        ChatService            │           │
+│            │         │   - getRoomId(id1, id2)       │           │
+│            │         │     → "min_max" (vd: "3_5")   │           │
+│            │         │   - saveMessage()             │           │
+│            │         │   - getMessagesByRoom()       │           │
+│            │         │   - getConversations()        │           │
+│            │         └────────────┬─────────────────┘           │
+│            │                      │                              │
+│            │              ┌───────▼──────────┐                  │
+│            │              │    BotService     │                  │
+│            │              │  - getReply()     │                  │
+│            │              │    Groq API call  │                  │
+│            │              │    Llama 3.3 70B  │                  │
+│            │              └───────┬──────────┘                  │
+│            │                      │                              │
+│  ┌─────────▼──────────────────────▼──────────┐                  │
+│  │              UserService                  │                  │
+│  │  - findByUsername()                       │                  │
+│  │  - create()                               │                  │
+│  │  - findByIds()                            │                  │
+│  └─────────────────────────────────────────┬─┘                  │
+└────────────────────────────────────────────┼────────────────────┘
+                                             │  TypeORM (ORM)
+                                             │
+┌────────────────────────────────────────────▼────────────────────┐
+│                    DATABASE (PostgreSQL)                         │
+│                    PORT: 5432 / DB: chatapp                      │
+├─────────────────────────────┬───────────────────────────────────┤
+│       Bảng: users           │         Bảng: messages            │
+│  ┌─────────────────────┐    │  ┌─────────────────────────────┐  │
+│  │ id          INTEGER │    │  │ id          INTEGER (PK)    │  │
+│  │ username    VARCHAR │    │  │ content     VARCHAR         │  │
+│  │ password    VARCHAR │    │  │ roomId      VARCHAR         │  │
+│  │ createdAt   DATE    │    │  │             (vd: "3_5")     │  │
+│  └─────────────────────┘    │  │ createdAt   DATE            │  │
+│                             │  │ senderId    INTEGER (FK)    │  │
+│                             │  │             → users.id      │  │
+│                             │  └─────────────────────────────┘  │
+└─────────────────────────────┴───────────────────────────────────┘
+
+🔄 LUỒNG HOẠT ĐỘNG CHI TIẾT
+
+1. ĐĂNG KÝ / ĐĂNG NHẬP
+──────────────────────
+   Browser ──POST /auth/register──► AuthController
+                                         │
+                                    bcrypt.hash(password)
+                                         │
+                                    INSERT INTO users
+                                         │
+   Browser ◄──{ token, username, userId }─┘
+
+2. KẾT NỐI REALTIME
+────────────────────
+   Browser ──WebSocket connect──► ChatGateway
+   Browser ──emit("userOnline")──► Gateway lưu vào Map
+   Gateway ──broadcast("onlineUsers")──► TẤT CẢ clients
+
+3. GỬI TIN NHẮN
+────────────────
+   Browser A ──emit("sendPrivateMessage")──► ChatGateway
+                                                 │
+                                           saveMessage() → DB
+                                                 │
+              ┌──────────────────────────────────┤
+              ▼                                  ▼
+         Browser A                          Browser B
+    ◄──"newPrivateMessage"──────────────"newPrivateMessage"──►
+
+4. CHAT VỚI BOT AI
+───────────────────
+   Browser ──emit("sendBotMessage")──► ChatGateway
+                                            │
+                                       BotService.getReply()
+                                            │
+                                       Groq API (internet)
+                                       Model: Llama 3.3 70B
+                                            │
+   Browser ◄──emit("newBotMessage")─────────┘
+🛠️ CÔNG NGHỆ SỬ DỤNG
+Layer	Công nghệ	Mục đích
+Frontend	Angular 21	UI, routing, component
+Realtime	Socket.IO (client)	Gửi/nhận tin nhắn realtime
+Backend	NestJS (Node.js)	REST API + WebSocket server
+Realtime	Socket.IO (server)	WebSocket gateway
+Auth	JWT + bcrypt	Đăng nhập, bảo mật
+ORM	TypeORM	Kết nối & query database
+Database	PostgreSQL	Lưu users, messages
+AI Bot	Groq API (Llama 3.3)	Trả lời tự động
+Deploy	Docker + Docker Compose	Container hóa backend + DB
